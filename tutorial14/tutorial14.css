@@ -1,0 +1,38 @@
+body{
+margin-top:20px;
+margin-left:50px;
+}
+hr.line{
+height:4px;
+background-color:black;
+width:50%;
+}
+img.singer-left{
+height:150;
+width:220px;
+border:6px solid black;
+float: left;
+margin-right:15px;
+}
+img.singer-right{
+height:150;
+width:220px;
+border:6px solid black;
+float: right;
+margin-left:15px;
+}
+p.pink-text{
+color:pink;
+font-size:18px;
+font-weight:bold;
+}
+p.blue-text{
+color:blue;
+font-size:18px;
+font-weight:bold;
+}
+p.purple-text{
+color:purple;
+font-size:18px;
+font-weight:bold;
+}
