@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>City Runner: Escape the Undead</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { margin: 0; background: #111; color: #fff; font-family: Arial, sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; }
+    #game-container { box-shadow: 0 6px 30px rgba(0,0,0,0.6); }
+    canvas { display:block; }
+    .instructions { text-align:center; margin-top:8px; font-size:13px; color:#ddd; }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+  <!-- p5.collide2D (for collideRectRect) -->
+  <script src="https://cdn.jsdelivr.net/gh/bmoren/p5.collide2D/p5.collide2d.min.js"></script>
+
+  <script>
+  // ======================================
+  // City Runner: Escape the Undead (HTML single-file)
+  // ======================================
+
+  // Game states: "cutscene", "start", "play", "gameover"
+  let gameState = "cutscene";
+
+  let player;
+  let obstacles = [];
+  let coins = [];
+  let bgX = 0;
+  let score = 0;
+  let gravity = 0.8;
+  let groundY = 310; // vertical location of ground (bottom of player)
+  let canvasW = 1000;
+  let canvasH = 500;
+
+  function setup() {
+    const cnv = createCanvas(canvasW, canvasH);
+    cnv.parent('game-container');
+    textFont("Arial");
+    player = new Player();
+  }
+
+  function draw() {
+    if (gameState === "cutscene") {
+      drawCutscene();
+    } 
+    else if (gameState === "start") {
+      drawStartScreen();
+    } 
+    else if (gameState === "play") {
+      playGame();
+    } 
+    else if (gameState === "gameover") {
+      drawGameOver();
+    }
+  }
+
+  // ======================================
+  // Cutscene Screen
+  // ======================================
+  function drawCutscene() {
+    background(22, 16, 20);
+    // dim hospital room feel
+    push();
+      fill(180);
+      textAlign(CENTER);
+      textSize(26);
+      text("You wake up in a dark hospital room...", width/2, height/2 - 60);
+      textSize(20);
+      text("It feels cold. Your head hurts.", width/2, height/2 - 25);
+
+      textSize(24);
+      fill(255, 80, 80);
+      text("A zombie bursts through the door!", width/2, height/2 + 15);
+
+      fill(220);
+      textSize(16);
+      text("Press ENTER to jump out the window and escape!", width/2, height/2 + 60);
+      textSize(12);
+      text("(Or press SPACE to skip animation and go to start screen)", width/2, height/2 + 88);
+    pop();
+  }
+
+  // ======================================
+  // Start Screen
+  // ======================================
+  function drawStartScreen() {
+    background(12);
+    fill(255, 120, 120);
+    textSize(28);
+    textAlign(CENTER);
+    text("CITY RUNNER: ESCAPE THE UNDEAD", width / 2, height / 2 - 80);
+
+    fill(255);
+    textSize(16);
+    text("You jump out the window and hit the streets. Run as far as you can!", width/2, height/2 - 48);
+    textSize(14);
+    text("Use SPACE to Jump. Collect coins. Avoid zombies and obstacles.", width/2, height/2 - 18);
+
+    textSize(18);
+    fill(180);
+    text("Press SPACE to Start Running!", width / 2, height / 2 + 24);
+
+    // small preview of controls
+    fill(150);
+    textSize(16);
+    text("Press I for instructions", width/2, height - 24);
+  }
+
+  // ======================================
+  // Gameplay
+  // ======================================
+  function playGame() {
+    // sky
+    background(45, 50, 60);
+
+    // scrolling buildings / city illusion
+    drawBuildings();
+
+    // ground / street
+    fill(35);
+    rect(0, groundY + 10, width, height - (groundY + 10));
+
+    // spawn obstacles and coins periodically
+    if (frameCount % 90 === 0) {
+      obstacles.push(new Obstacle());
+    }
+    if (frameCount % 150 === 0) {
+      coins.push(new Coin());
+    }
+
+    // update + display player
+    player.update();
+    player.display();
+
+    // update obstacles (iterate backwards for safe removal)
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      let o = obstacles[i];
+      o.update();
+      o.display();
+
+      // remove if off-screen
+      if (o.x + o.size < -20) obstacles.splice(i, 1);
+
+      // collision check
+      if (player.hits(o)) {
+        // immediate game over for simplicity
+        gameState = "gameover";
+      }
+    }
+
+    // coins
+    for (let i = coins.length - 1; i >= 0; i--) {
+      let c = coins[i];
+      c.update();
+      c.display();
+
+      if (c.x + c.size < -20) coins.splice(i, 1);
+
+      if (player.collects(c)) {
+        score += 10;
+        coins.splice(i, 1);
+      }
+    }
+
+    // score & HUD
+    fill(255);
+    textSize(18);
+    textAlign(LEFT);
+    text("Score: " + score, 20, 30);
+
+    // distance-based score increase
+    if (frameCount % 20 === 0) score += 1;
+
+    // difficulty ramp: slightly increase obstacle speed over time
+    if (frameCount % 600 === 0) {
+      for (let o of obstacles) o.speed += 0.6;
+    }
+  }
+
+  // ======================================
+  // Game Over Screen
+  // ======================================
+  function drawGameOver() {
+    background(8, 8, 12);
+    fill(255, 70, 70);
+    textSize(34);
+    textAlign(CENTER);
+    text("GAME OVER", width/2, height/2 - 40);
+
+    fill(240);
+    textSize(20);
+    text("Final Score: " + score, width/2, height/2);
+
+    textSize(16);
+    text("Press R to Restart or SPACE to go to Start Screen", width/2, height/2 + 48);
+  }
+
+  // ======================================
+  // Helper and Reset
+  // ======================================
+  function resetGame() {
+    player = new Player();
+    obstacles = [];
+    coins = [];
+    score = 0;
+    // reset frameCount for predictable spawning (note: p5's frameCount is read-only, so we use this workaround)
+    // We can't directly set frameCount, but clearing arrays and score is fine.
+  }
+
+  // Background buildings for scrolling effect
+  function drawBuildings() {
+    // move background
+    bgX -= 2;
+    if (bgX <= -width) bgX = 0;
+
+    // two layers of rectangles for simple parallax
+    push();
+      noStroke();
+      // far buildings
+      fill(35, 38, 48);
+      rect(bgX, 90, width, 160);
+      rect(bgX + width, 90, width, 160);
+
+      // windows on buildings (simple)
+      fill(200, 200, 120, 60);
+      for (let i = bgX + 30; i < bgX + width; i += 40) {
+        rect(i, 120, 12, 16);
+      }
+      for (let i = bgX + width + 30; i < bgX + 2*width; i += 40) {
+        rect(i, 120, 12, 16);
+      }
+
+      // mid-ground buildings
+      fill(28, 30, 36);
+      rect(bgX * 1.2, 150, width, 120);
+      rect(bgX * 1.2 + width, 150, width, 120);
+    pop();
+  }
+
+  // ======================================
+  // Player class
+  // ======================================
+  class Player {
+    constructor() {
+      this.x = 100;
+      this.y = groundY;
+      this.vy = 0;
+      this.size = 40;
+    }
+
+    jump() {
+      // allow jump only when standing on ground (simple check)
+      if (this.y >= groundY) {
+        this.vy = -15;
+      }
+    }
+
+    update() {
+      this.y += this.vy;
+      this.vy += gravity;
+
+      if (this.y > groundY) {
+        this.y = groundY;
+        this.vy = 0;
+      }
+    }
+
+    display() {
+      // simple survivor sprite: rectangle + face
+      push();
+        translate(this.x, this.y - this.size);
+        fill(40, 160, 200);
+        rect(0, 0, this.size, this.size, 4);
+        // eyes
+        fill(255);
+        rect(8, 10, 6, 6);
+        rect(26, 10, 6, 6);
+        fill(0);
+        rect(9, 11.5, 2.5, 2.5);
+        rect(27, 11.5, 2.5, 2.5);
+      pop();
+    }
+
+    hits(obstacle) {
+      return collideRectRect(
+        this.x, this.y - this.size, this.size, this.size,
+        obstacle.x, obstacle.y - obstacle.size, obstacle.size, obstacle.size
+      );
+    }
+
+    collects(coin) {
+      return collideRectRect(
+        this.x, this.y - this.size, this.size, this.size,
+        coin.x - coin.size/2, coin.y - coin.size/2, coin.size, coin.size
+      );
+    }
+  }
+
+  // ======================================
+  // Obstacle class (zombie / debris)
+  // ======================================
+  class Obstacle {
+    constructor() {
+      this.size = 40;
+      this.x = width + random(20, 120);
+      this.y = groundY;
+      this.speed = 6 + random(0, 1.5);
+      // small chance obstacle is taller (bigger zombie)
+      if (random() < 0.15) {
+        this.size = 60;
+      }
+    }
+
+    update() {
+      this.x -= this.speed;
+    }
+
+    display() {
+      push();
+        translate(this.x, this.y - this.size);
+        // simple zombie block: green
+        fill(100, 200, 120);
+        rect(0, 0, this.size, this.size, 3);
+        // eyes/mouth
+        fill(255);
+        rect(this.size*0.18, this.size*0.22, this.size*0.12, this.size*0.12);
+        rect(this.size*0.58, this.size*0.22, this.size*0.12, this.size*0.12);
+        fill(40,40,40);
+        rect(this.size*0.22, this.size*0.28, this.size*0.06, this.size*0.06);
+        rect(this.size*0.62, this.size*0.28, this.size*0.06, this.size*0.06);
+        // small staggered arms to hint animation
+        fill(80,160,100);
+        rect(-4, this.size*0.6, this.size*0.18, this.size*0.12, 2);
+        rect(this.size - (this.size*0.12) + 4, this.size*0.6, this.size*0.18, this.size*0.12, 2);
+      pop();
+    }
+  }
+
+  // ======================================
+  // Coin class
+  // ======================================
+  class Coin {
+    constructor() {
+      this.size = 20;
+      this.x = width + random(10, 200);
+      this.y = random(groundY - 120, groundY - 40);
+      this.speed = 6;
+      this.angle = random(TWO_PI);
+    }
+
+    update() {
+      this.x -= this.speed;
+      this.angle += 0.12;
+    }
+
+    display() {
+      push();
+        translate(this.x, this.y);
+        rotate(this.angle);
+        noStroke();
+        fill(255, 200, 0);
+        ellipse(0, 0, this.size);
+        fill(250, 240, 150);
+        ellipse(0, 0, this.size*0.45);
+      pop();
+    }
+  }
+
+  // ======================================
+  // Keyboard controls
+  // ======================================
+  function keyPressed() {
+    // universal controls depending on state
+    if (gameState === "cutscene") {
+      if (keyCode === ENTER) {
+        // simulate jumping out and go to start screen
+        gameState = "start";
+      } else if (key === ' ' || keyCode === 32) {
+        // skip to start screen
+        gameState = "start";
+      }
+    } else if (gameState === "start") {
+      if (key === ' ' || keyCode === 32) {
+        // start the run
+        resetGame();
+        gameState = "play";
+      } else if (key === 'i' || key === 'I') {
+        alert("Controls: SPACE=Jump R=Restart after Game Over. Collect coins to increase score. Avoid obstacles and zombies.");
+      }
+    } else if (gameState === "play") {
+      if (key === ' ' || keyCode === 32) {
+        player.jump();
+      }
+    } else if (gameState === "gameover") {
+      if (key === 'r' || key === 'R') {
+        // restart directly into play
+        resetGame();
+        gameState = "play";
+      } else if (key === ' ') {
+        // go to start screen
+        resetGame();
+        gameState = "start";
+      }
+    }
+  }
+
+  // Optional: allow mouse click on canvas to act as jump / start
+  function mousePressed() {
+    if (gameState === "start") {
+      resetGame();
+      gameState = "play";
+    } else if (gameState === "play") {
+      player.jump();
+    } else if (gameState === "gameover") {
+      resetGame();
+      gameState = "start";
+    }
+  }
+
+  </script>
+</body>
+</html>
